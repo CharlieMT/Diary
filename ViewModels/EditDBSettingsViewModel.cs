@@ -1,41 +1,40 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Diary.Properties;
 using Diary.Commands;
-using Diary.Models.Domains;
 using System.Windows.Input;
 using System.Windows;
-using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
-using Diary.Views;
+using Diary.Models.Wrappers;
+using System.ComponentModel;
 
 namespace Diary.ViewModels
 {
     class EditDBSettingsViewModel : ViewModelBase
     {
-        private bool conectionStatus = false;
+        private readonly IDialogCoordinator _dialogCoordinator;
 
-        private DBSettingsView dBSettingsView;
+        private ApplicationDbContext dbContext = new ApplicationDbContext();
 
-        public EditDBSettingsViewModel(DBSettings dbSettings = null, DBSettingsView dBSettings = null)
+        public EditDBSettingsViewModel(DBSettingsWrapper dbSettings = null, IDialogCoordinator dialogCoordinator = null )
         {
-            dBSettingsView = dBSettings;
-            CloseCommand = new RelayCommand(Close);
-            CheckCommand = new AsyncRelayCommand(Check);
-            ConfirmCommand = new RelayCommand(Confirm);
-            if(dbSettings == null)
+            if (dbSettings == null)
             {
-                DBSettings = new DBSettings();
+                DBSettings = new DBSettingsWrapper();
             }
             else
             {
                 DBSettings = dbSettings;
             }
+
+            _dialogCoordinator = dialogCoordinator;
+            CloseCommand = new RelayCommand(Clean);
+            CheckCommand = new AsyncRelayCommand(Check, CheckForEmptyStrings);
+            ConfirmCommand = new RelayCommand(Confirm, CanConfirmParameters);
+
             GetDbSettings();
+            DBSettings.Connection = dbContext.CheckConnectionToDatabase(DBSettings.ServerAddress, DBSettings.ServerName, DBSettings.DataBaseName, DBSettings.UserName, DBSettings.Password);
         }
+
 
         public ICommand CloseCommand { get; set; }
 
@@ -43,26 +42,34 @@ namespace Diary.ViewModels
 
         public ICommand ConfirmCommand { get; set; }
 
+        public void OnWindowsClosing(object sender, CancelEventArgs args)
+        {
+            if (CheckForEmptyStrings(this))
+                return;
+            if(CheckIfParametersWhereNotChanged())
+                MainViewModel.IsConnectedToDB = DBSettings.Connection;
+        }
+
         private void GetDbSettings()
         {
-            DBSettings.ServerName = Settings.Default.ServerName;
             DBSettings.ServerAddress = Settings.Default.ServerAddress;
-            DBSettings.DatabaseName = Settings.Default.DatabaseName;
+            DBSettings.ServerName = Settings.Default.ServerName;
             DBSettings.UserName = Settings.Default.UserName;
             DBSettings.Password = Settings.Default.Password;
+            DBSettings.DataBaseName = Settings.Default.DatabaseName;
         }
 
         private void SetDbSettings()
         {
-            Settings.Default.ServerName = DBSettings.ServerName;
             Settings.Default.ServerAddress = DBSettings.ServerAddress;
-            Settings.Default.DatabaseName = DBSettings.DatabaseName;
+            Settings.Default.ServerName = DBSettings.ServerName;
+            Settings.Default.DatabaseName = DBSettings.DataBaseName;
             Settings.Default.UserName = DBSettings.UserName;
             Settings.Default.Password = DBSettings.Password;
-
+            Settings.Default.Save();
         }
-        private DBSettings _dbSettings;
-        public DBSettings DBSettings
+        public DBSettingsWrapper _dbSettings;
+        public DBSettingsWrapper DBSettings
         {
             get
             {
@@ -77,42 +84,81 @@ namespace Diary.ViewModels
 
         private void Confirm(object obj)
         {
-            
-            
-            //CloseWindow(obj as Window);
-        }
-
-        private void Close(object obj)
-        {
+            SetDbSettings();
+            MainViewModel.IsConnectedToDB = DBSettings.Connection;
             CloseWindow(obj as Window);
         }
 
-        private async Task Check(object obj)
+        private void Clean(object obj)
         {
-            using (ApplicationDbContext dbContext = new ApplicationDbContext($@"Server={DBSettings.ServerAddress}\{DBSettings.ServerName};Database={DBSettings.DatabaseName};User Id={DBSettings.UserName}; Password={DBSettings.Password};"))
+            DBSettings.ServerAddress = string.Empty;
+            DBSettings.ServerName = string.Empty;
+            DBSettings.UserName = string.Empty;
+            DBSettings.Password = string.Empty;
+            DBSettings.DataBaseName = string.Empty;
+            OnPropertyChanged(_dbSettings.ServerAddress);
+        }
+
+        private async Task Check(object obj)
+        { 
+            if (!ConnectionStatus())
             {
-                conectionStatus = dbContext.Database.Exists();
+                var dialog = await _dialogCoordinator.ShowMessageAsync(this, "Connection Error !", $"Nie można połączyć sie z bazą {DBSettings.DataBaseName} \n Sprwadź parametry połącznia", MessageDialogStyle.Affirmative);
+                DBSettings.Connection = false;
             }
-
-            if (!conectionStatus)
+            else
             {
-                var metroWindow = Application.Current.MainWindow as MetroWindow;
-
-                var dialog = await metroWindow.ShowMessageAsync("Connection Check", $"Podano nie poprawne parametry polaczenia do bazy danych {DBSettings.DatabaseName}", MessageDialogStyle.Affirmative);
-
-
-
+                var dialog = await _dialogCoordinator.ShowMessageAsync(this, "Connection OK", $" Przetestowana połaczenie z bazą {DBSettings.DataBaseName} \n Wszystko działa", MessageDialogStyle.Affirmative);
+                DBSettings.Connection = true;
             }
             return;
         }
 
-
+        private bool ConnectionStatus()
+        {
+            return dbContext.CheckConnectionToDatabase(DBSettings.ServerAddress, DBSettings.ServerName, DBSettings.DataBaseName, DBSettings.UserName, DBSettings.Password);
+        }
 
         private void CloseWindow(Window window)
         {
             window.Close();
         }
 
+        private bool CanConfirmParameters(object obj)
+        {
+            return DBSettings.Connection;
+        }
 
+        private bool CheckForEmptyStrings(object obj)
+        {
+            if (string.IsNullOrEmpty(DBSettings.ServerAddress))
+                return false;
+            if (string.IsNullOrEmpty(DBSettings.ServerName))
+                return false;
+            if (string.IsNullOrEmpty(DBSettings.UserName))
+                return false;
+            if (string.IsNullOrEmpty(DBSettings.Password))
+                return false;
+            if (string.IsNullOrEmpty(DBSettings.DataBaseName))
+                return false;
+
+            return true;
+        }
+
+        private bool CheckIfParametersWhereNotChanged()
+        {
+            if (DBSettings.ServerAddress != Settings.Default.ServerAddress)
+                return false;
+            if (DBSettings.ServerName != Settings.Default.ServerName)
+                return false;
+            if (DBSettings.UserName != Settings.Default.UserName)
+                return false;
+            if (DBSettings.Password != Settings.Default.Password)
+                return false;
+            if (DBSettings.DataBaseName != Settings.Default.DatabaseName)
+                return false;
+
+            return true;
+        }
     }
 }
