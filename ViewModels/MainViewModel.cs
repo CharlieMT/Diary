@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -12,30 +9,39 @@ using MahApps.Metro.Controls.Dialogs;
 using MahApps.Metro.Controls;
 using Diary.Views;
 using Diary.Models.Domains;
-using Diary.Properties;
-using System.Configuration;
-using System.Data.Entity;
+using System.Threading;
 
 namespace Diary.ViewModels
 {
     class MainViewModel : ViewModelBase
     {
-
-
         private Repository _repository = new Repository();
+        private ApplicationDbContext dbContext;
+        public static bool IsConnectedToDB { get; set; }
         public MainViewModel()
         {
-            RefreshStudentsCommand = new RelayCommand(RefeshStudents);
-            AddStudentCommand = new RelayCommand(AddEditStudent);
+            SplashScreen splashScreen = new SplashScreen("Images\\StudentDiary.jpg");
+            splashScreen.Show(true);
+            Thread.Sleep(3500);
+
+            RefreshStudentsCommand = new RelayCommand(RefeshStudents, IsDatabaseConnected);
+            AddStudentCommand = new RelayCommand(AddEditStudent, IsDatabaseConnected);
             EditStudentCommand = new RelayCommand(AddEditStudent, CanEditDeleteStudent);
             DeleteStudentCommand = new AsyncRelayCommand(DeleteStudent, CanEditDeleteStudent);
-            EditDBSettingsCommand = new AsyncRelayCommand(EditDBSettings);
-
-            RefreshDiary();
-            InitGroups();
+            EditDBSettingsCommand = new RelayCommand(EditDBSettings);
+            dbContext = new ApplicationDbContext();
+            if (dbContext.Database.Exists())
+            {
+                IsConnectedToDB = true;
+                RefreshDiary();
+                InitGroups();
+            }
+            else
+            {
+              Task task = NoConnectionDialogBox();
+            }
         }
 
-     
 
         public ICommand RefreshStudentsCommand { get; set; }
 
@@ -83,7 +89,10 @@ namespace Diary.ViewModels
 
         public int SelectedGroupId
         {
-            get { return _selectedGroupId; }
+            get 
+            { 
+                return _selectedGroupId;
+            }
             set
             {
                 _selectedGroupId = value;
@@ -95,7 +104,10 @@ namespace Diary.ViewModels
 
         public ObservableCollection<Group> Groups
         {
-            get { return _group; }
+            get 
+            { 
+                return _group; 
+            }
             set
             {
                 _group = value;
@@ -107,10 +119,7 @@ namespace Diary.ViewModels
         {
             var groups = _repository.GetGroups();
             groups.Insert(0, new Group { Id = 0, Name = "Wszystkie" });
-
             Groups = new ObservableCollection<Group>(groups);
-         
-
             SelectedGroupId = 0;
         }
 
@@ -125,19 +134,23 @@ namespace Diary.ViewModels
             var metroWindow = Application.Current.MainWindow as MetroWindow;
             var dialog = await metroWindow.ShowMessageAsync("Usuwanie Ucznia", $"Czy na pewno chesz usunac ucznia {SelectedStudent.FirstName} {SelectedStudent.LastName} ?", MessageDialogStyle.AffirmativeAndNegative);
 
-            if(dialog != MessageDialogResult.Affirmative)
+            if (dialog != MessageDialogResult.Affirmative)
             {
                 return;
             }
             _repository.DeleteStudent(SelectedStudent.Id);
 
             RefreshDiary();
-            
         }
 
         private bool CanEditDeleteStudent(object obj)
         {
             return SelectedStudent != null;
+        }
+
+        private bool IsDatabaseConnected(object obj)
+        {
+            return IsConnectedToDB;
         }
 
         private void AddEditStudent(object obj)
@@ -154,15 +167,32 @@ namespace Diary.ViewModels
 
         private void RefreshDiary()
         {
-            Students = new ObservableCollection<StudentWrapper>(_repository.GetStudent(SelectedGroupId));
-            
+            if (IsConnectedToDB)
+                Students = new ObservableCollection<StudentWrapper>(_repository.GetStudent(SelectedGroupId));
+            else
+                Students = null;
         }
 
-        private async Task EditDBSettings(object obj)
+        private void EditDBSettings(object obj)
         {
-            var editDBSettingsWindow = new DBSettingsView(obj as DBSettings);
+            var editDBSettingsWindow = new DBSettingsView(obj as DBSettingsWrapper);
             editDBSettingsWindow.Closed += AddEditStudentWindow_Closed;
-             editDBSettingsWindow.ShowDialog();
+            editDBSettingsWindow.ShowDialog();
+            RefreshDiary();
+        }
+
+        private async Task NoConnectionDialogBox()
+        {
+            var metrowindow = Application.Current.MainWindow as MetroWindow;
+
+            var dialog = await metrowindow.ShowMessageAsync("Database Connection Error ", "Brak połaczenia z Baza Danych \n Sprawdz ustawienia ", MessageDialogStyle.AffirmativeAndNegative);
+
+            if(dialog != MessageDialogResult.Affirmative)
+            {
+                return;
+            }
+            EditDBSettings(this);
+            
         }
 
     }

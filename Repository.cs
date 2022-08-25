@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Diary.Models.Domains;
 using Diary.Models.Wrappers;
 using System.Data.Entity;
@@ -34,6 +31,7 @@ namespace Diary
                 return students.ToList().Select(x => x.ToStudentWrapper()).ToList();
             }
         }
+
 
         internal void DeleteStudent(int id)
         {

@@ -1,20 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel;
 
 namespace Diary.Models.Wrappers
 {
     public class StudentWrapper : IDataErrorInfo
-
     {
-
         public StudentWrapper()
         {
             Group = new GroupWrapper();
-
         }
 
         public bool _isStudentNameValid = false;
@@ -84,7 +76,6 @@ namespace Diary.Models.Wrappers
         {
             get
             {
-
                 return _isStudentNameValid && Group._isGroupDataValid;
             }
         }

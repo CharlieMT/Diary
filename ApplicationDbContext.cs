@@ -1,16 +1,6 @@
-using System;
 using System.Data.Entity;
-using System.Linq;
 using Diary.Models.Configurations;
 using Diary.Models.Domains;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data.Common;
-using System.Data.Entity.Core.Objects;
-using System.Data.Entity.Infrastructure;
-using System.Data.Entity.Validation;
-using System.Threading;
-using System.Threading.Tasks;
 using Diary.Properties;
 
 namespace Diary
@@ -24,7 +14,7 @@ namespace Diary
 
         public ApplicationDbContext(string connection)
             :base(connection)
-        {
+        { 
         }
 
         public DbSet<Student> Students { get; set; }
@@ -38,6 +28,16 @@ namespace Diary
             modelBuilder.Configurations.Add(new StudentConfiguration());
             modelBuilder.Configurations.Add(new RaitingConfiguration());
             modelBuilder.Configurations.Add(new GroupConfiguration());
+        }
+
+        public bool CheckConnectionToDatabase(string serverAdress, string serverName, string databaseName, string userName, string password)
+        {
+            using (ApplicationDbContext dbContext = new ApplicationDbContext($@"Server={serverAdress}\{serverName};Database={databaseName};User Id={userName}; Password={password};"))
+            {
+                return dbContext.Database.Exists();
+                
+            }
+
         }
 
     }

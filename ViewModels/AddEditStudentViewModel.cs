@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Diary.Models.Wrappers;
+﻿using Diary.Models.Wrappers;
 using System.Windows.Input;
 using Diary.Commands;
 using System.Collections.ObjectModel;
